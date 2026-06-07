@@ -1,0 +1,131 @@
+services:
+  redis:
+    image: redis:7-alpine
+    container_name: retobluto_redis
+    ports:
+      - "6379:6379"
+    networks:
+      - retobluto_network
+
+  auth-db:
+    image: mysql:8.0
+    container_name: retobluto_auth_db
+    restart: unless-stopped
+    environment:
+      MYSQL_DATABASE: auth_db
+      MYSQL_USER: auth_user
+      MYSQL_PASSWORD: auth_password
+      MYSQL_ROOT_PASSWORD: root
+    ports:
+      - "33061:3306"
+    volumes:
+      - auth_db_data:/var/lib/mysql
+    networks:
+      - retobluto_network
+
+  member-db:
+    image: mysql:8.0
+    container_name: retobluto_member_db
+    restart: unless-stopped
+    environment:
+      MYSQL_DATABASE: member_db
+      MYSQL_USER: member_user
+      MYSQL_PASSWORD: member_password
+      MYSQL_ROOT_PASSWORD: root
+    ports:
+      - "33062:3306"
+    volumes:
+      - member_db_data:/var/lib/mysql
+    networks:
+      - retobluto_network
+
+  field-db:
+    image: mysql:8.0
+    container_name: retobluto_field_db
+    restart: unless-stopped
+    environment:
+      MYSQL_DATABASE: field_db
+      MYSQL_USER: field_user
+      MYSQL_PASSWORD: field_password
+      MYSQL_ROOT_PASSWORD: root
+    ports:
+      - "33063:3306"
+    volumes:
+      - field_db_data:/var/lib/mysql
+    networks:
+      - retobluto_network
+
+  booking-db:
+    image: mysql:8.0
+    container_name: retobluto_booking_db
+    restart: unless-stopped
+    environment:
+      MYSQL_DATABASE: booking_db
+      MYSQL_USER: booking_user
+      MYSQL_PASSWORD: booking_password
+      MYSQL_ROOT_PASSWORD: root
+    ports:
+      - "33064:3306"
+    volumes:
+      - booking_db_data:/var/lib/mysql
+    networks:
+      - retobluto_network
+
+  notification-db:
+    image: mysql:8.0
+    container_name: retobluto_notification_db
+    restart: unless-stopped
+    environment:
+      MYSQL_DATABASE: notification_db
+      MYSQL_USER: notification_user
+      MYSQL_PASSWORD: notification_password
+      MYSQL_ROOT_PASSWORD: root
+    ports:
+      - "33065:3306"
+    volumes:
+      - notification_db_data:/var/lib/mysql
+    networks:
+      - retobluto_network
+
+  hasura-db:
+    image: postgres:15
+    container_name: retobluto_hasura_db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: hasura_db
+      POSTGRES_USER: hasura_user
+      POSTGRES_PASSWORD: hasura_password
+    ports:
+      - "5433:5432"
+    volumes:
+      - hasura_db_data:/var/lib/postgresql/data
+    networks:
+      - retobluto_network
+
+  hasura:
+    image: hasura/graphql-engine:v2.38.0
+    container_name: retobluto_hasura
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    depends_on:
+      - hasura-db
+    environment:
+      HASURA_GRAPHQL_DATABASE_URL: postgres://hasura_user:hasura_password@hasura-db:5432/hasura_db
+      HASURA_GRAPHQL_ENABLE_CONSOLE: "true"
+      HASURA_GRAPHQL_DEV_MODE: "true"
+      HASURA_GRAPHQL_ADMIN_SECRET: retobluto_admin_secret
+    networks:
+      - retobluto_network
+
+networks:
+  retobluto_network:
+    driver: bridge
+
+volumes:
+  auth_db_data:
+  member_db_data:
+  field_db_data:
+  booking_db_data:
+  notification_db_data:
+  hasura_db_data:
