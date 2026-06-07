@@ -3,5 +3,8 @@
 use Illuminate\Support\Facades\Route;
 
 Route::get('/', function () {
-    return view('welcome');
+    return response()->json([
+        'service' => 'auth-service',
+        'message' => 'Retobluto Auth Service is running',
+    ]);
 });

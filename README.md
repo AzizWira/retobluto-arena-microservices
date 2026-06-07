@@ -21,15 +21,15 @@ Sistem ini mendukung:
 
 ## Daftar Service
 
-| Service              | Deskripsi                                                  | Penanggung Jawab |
-| -------------------- | ---------------------------------------------------------- | ---------------- |
-| auth-service         | Login admin/member, register member, OTP, token validation | Anggota A        |
-| member-service       | Manajemen profil member                                    | Anggota C        |
-| field-service        | Manajemen data lapangan                                    | Anggota B        |
-| booking-service      | Pengajuan booking, approve, reject, cancel                 | Lead/Kamu        |
-| notification-service | OTP email dan notifikasi booking                           | Anggota C        |
-| graphql-gateway      | GraphQL manual gateway                                     | Lead/Kamu        |
-| hasura               | GraphQL otomatis untuk reporting                           | Lead/Kamu        |
+| Service              | Deskripsi                                                  | Penanggung Jawab            |
+| -------------------- | ---------------------------------------------------------- | --------------------------- |
+| auth-service         | Login admin/member, register member, OTP, token validation | Aura Iftitah                |
+| member-service       | Manajemen profil member                                    | Ryan Alvin Saputra          |
+| field-service        | Manajemen data lapangan                                    | MUhammad Agil Hidayahtullah |
+| booking-service      | Pengajuan booking, approve, reject, cancel                 | Ahmad Aziz Wira Widodo      |
+| notification-service | OTP email dan notifikasi booking                           | Ryan Alvin Saputra          |
+| graphql-gateway      | GraphQL manual gateway                                     | Ahmad Aziz Wira Widodo      |
+| hasura               | GraphQL otomatis untuk reporting                           | Ahmad Aziz Wira Widodo      |
 
 ## Teknologi
 
