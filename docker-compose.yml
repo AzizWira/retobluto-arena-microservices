@@ -87,6 +87,81 @@ services:
     networks:
       - retobluto_network
 
+  auth-service:
+    build:
+      context: ./auth-service
+    container_name: retobluto_auth_service
+    restart: unless-stopped
+    ports:
+      - "8001:8000"
+    depends_on:
+      - auth-db
+      - redis
+    volumes:
+      - ./auth-service:/var/www/html
+    networks:
+      - retobluto_network
+
+  member-service:
+    build:
+      context: ./member-service
+    container_name: retobluto_member_service
+    restart: unless-stopped
+    ports:
+      - "8002:8000"
+    depends_on:
+      - member-db
+      - redis
+    volumes:
+      - ./member-service:/var/www/html
+    networks:
+      - retobluto_network
+
+  field-service:
+    build:
+      context: ./field-service
+    container_name: retobluto_field_service
+    restart: unless-stopped
+    ports:
+      - "8003:8000"
+    depends_on:
+      - field-db
+      - redis
+    volumes:
+      - ./field-service:/var/www/html
+    networks:
+      - retobluto_network
+
+  booking-service:
+    build:
+      context: ./booking-service
+    container_name: retobluto_booking_service
+    restart: unless-stopped
+    ports:
+      - "8004:8000"
+    depends_on:
+      - booking-db
+      - redis
+    volumes:
+      - ./booking-service:/var/www/html
+    networks:
+      - retobluto_network
+
+  notification-service:
+    build:
+      context: ./notification-service
+    container_name: retobluto_notification_service
+    restart: unless-stopped
+    ports:
+      - "8005:8000"
+    depends_on:
+      - notification-db
+      - redis
+    volumes:
+      - ./notification-service:/var/www/html
+    networks:
+      - retobluto_network
+
   hasura-db:
     image: postgres:15
     container_name: retobluto_hasura_db

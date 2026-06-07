@@ -12,14 +12,20 @@ Thumbs.db
 !.env.example
 
 # Laravel
-/vendor
-/node_modules
+/vendor/
+/node_modules/
 /storage/*.key
 /bootstrap/cache/*.php
 /storage/logs/*.log
 
-# Composer
-composer.lock
+# Laravel nested services
+**/vendor/
+**/node_modules/
+**/.env
+!**/.env.example
+**/storage/*.key
+**/bootstrap/cache/*.php
+**/storage/logs/*.log
 
 # Docker
 docker-data/
@@ -33,3 +39,4 @@ hasura/config.yaml
 
 # Logs
 *.log
+**/*.log
