@@ -162,6 +162,20 @@ services:
     networks:
       - retobluto_network
 
+  notification-worker:
+    build:
+      context: ./notification-service
+    container_name: retobluto_notification_worker
+    restart: unless-stopped
+    depends_on:
+      - notification-db
+      - redis
+    volumes:
+      - ./notification-service:/var/www/html
+    command: php artisan notifications:listen-redis
+    networks:
+      - retobluto_network
+
   hasura-db:
     image: postgres:15
     container_name: retobluto_hasura_db
