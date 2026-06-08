@@ -882,27 +882,5 @@ class BookingController extends Controller
         } catch (\Exception $e) {
             // Redis event tidak menggagalkan proses booking.
         }
-
-        try {
-            $notificationServiceUrl = rtrim(env('NOTIFICATION_SERVICE_URL', 'http://notification-service:8000'), '/');
-
-            Http::timeout(5)
-                ->withHeaders([
-                    'X-INTERNAL-SECRET' => env('INTERNAL_SERVICE_SECRET', 'retobluto_internal_secret'),
-                    'Accept' => 'application/json',
-                ])
-                ->post($notificationServiceUrl . '/api/internal/notifications/booking-status', [
-                    'recipient_email' => $booking->member_email,
-                    'member_name' => $booking->member_name,
-                    'field_name' => $booking->field_name,
-                    'booking_date' => optional($booking->booking_date)->format('Y-m-d') ?? (string) $booking->booking_date,
-                    'start_time' => substr($booking->start_time, 0, 5),
-                    'end_time' => substr($booking->end_time, 0, 5),
-                    'status' => $booking->status,
-                    'booking_id' => $booking->id,
-                ]);
-        } catch (\Exception $e) {
-            // Direct notification tidak menggagalkan proses booking.
-        }
     }
 }
