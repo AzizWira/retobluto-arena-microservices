@@ -7,13 +7,14 @@ use App\Models\OtpCode;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Redis;
 use Illuminate\Validation\ValidationException;
-use Tymon\JWTAuth\Facades\JWTAuth;
 use Tymon\JWTAuth\Exceptions\JWTException;
+use Tymon\JWTAuth\Exceptions\TokenBlacklistedException;
 use Tymon\JWTAuth\Exceptions\TokenExpiredException;
 use Tymon\JWTAuth\Exceptions\TokenInvalidException;
-use Tymon\JWTAuth\Exceptions\TokenBlacklistedException;
+use Tymon\JWTAuth\Facades\JWTAuth;
 
 class AuthController extends Controller
 {
@@ -103,8 +104,8 @@ class AuthController extends Controller
                     'expired_at' => now()->addMinutes(10)->toDateTimeString(),
                 ]));
             } catch (\Exception $e) {
-                // Untuk tahap Push 3, Redis event tidak menggagalkan request OTP.
-                // Notification Service baru akan dikerjakan pada push berikutnya.
+                // Redis event tidak menggagalkan request OTP.
+                // Notification Service akan menangani event ini pada tahap berikutnya.
             }
 
             return response()->json([
@@ -165,6 +166,15 @@ class AuthController extends Controller
                 ], 422);
             }
 
+            $existingUser = User::where('email', $otpRecord->email)->first();
+
+            if ($existingUser) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Email sudah terdaftar',
+                ], 409);
+            }
+
             $user = User::create([
                 'name' => $otpRecord->name,
                 'email' => $otpRecord->email,
@@ -173,6 +183,18 @@ class AuthController extends Controller
                 'is_verified' => true,
                 'email_verified_at' => now(),
             ]);
+
+            $memberSyncResult = $this->syncMemberProfile($user);
+
+            if (!$memberSyncResult['success']) {
+                $user->delete();
+
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Registrasi gagal karena profil member tidak dapat dibuat',
+                    'member_sync' => $memberSyncResult,
+                ], 502);
+            }
 
             $otpRecord->update([
                 'verified_at' => now(),
@@ -186,12 +208,20 @@ class AuthController extends Controller
                     'email' => $user->email,
                 ]));
             } catch (\Exception $e) {
-                // Event ini akan dipakai Member Service nanti.
+                // Event tidak menggagalkan proses registrasi.
             }
 
             $token = JWTAuth::fromUser($user);
 
-            return $this->respondWithToken($token, $user, 'Registrasi member berhasil');
+            return response()->json([
+                'success' => true,
+                'message' => 'Registrasi member berhasil',
+                'token_type' => 'Bearer',
+                'access_token' => $token,
+                'expires_in' => (int) config('jwt.ttl', 60) * 60,
+                'user' => $this->userPayload($user),
+                'member_sync' => $memberSyncResult,
+            ], 200);
         } catch (ValidationException $e) {
             return response()->json([
                 'success' => false,
@@ -321,6 +351,47 @@ class AuthController extends Controller
                 'success' => false,
                 'message' => 'Token tidak valid atau sudah logout',
             ], 401);
+        }
+    }
+
+    private function syncMemberProfile(User $user): array
+    {
+        try {
+            $memberServiceUrl = rtrim(env('MEMBER_SERVICE_URL', 'http://member-service:8000'), '/');
+
+            $response = Http::timeout(5)
+                ->withHeaders([
+                    'X-INTERNAL-SECRET' => env('INTERNAL_SERVICE_SECRET', 'retobluto_internal_secret'),
+                    'Accept' => 'application/json',
+                ])
+                ->post($memberServiceUrl . '/api/internal/members/sync-from-auth', [
+                    'user_id' => $user->id,
+                    'name' => $user->name,
+                    'email' => $user->email,
+                    'phone' => null,
+                    'address' => null,
+                ]);
+
+            if (!$response->successful()) {
+                return [
+                    'success' => false,
+                    'message' => 'Member Service gagal membuat profil member',
+                    'status' => $response->status(),
+                    'response' => $response->json(),
+                ];
+            }
+
+            return [
+                'success' => true,
+                'message' => 'Profil member berhasil dibuat di Member Service',
+                'response' => $response->json(),
+            ];
+        } catch (\Exception $e) {
+            return [
+                'success' => false,
+                'message' => 'Member Service unavailable',
+                'error' => $e->getMessage(),
+            ];
         }
     }
 
