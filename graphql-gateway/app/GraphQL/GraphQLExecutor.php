@@ -3,6 +3,7 @@
 namespace App\GraphQL;
 
 use App\GraphQL\Core\GraphQLParser;
+use App\GraphQL\Resolvers\BookingResolver;
 use App\GraphQL\Resolvers\FieldResolver;
 use App\GraphQL\Resolvers\HealthResolver;
 
@@ -10,7 +11,8 @@ class GraphQLExecutor
 {
     public function __construct(
         private readonly HealthResolver $healthResolver,
-        private readonly FieldResolver $fieldResolver
+        private readonly FieldResolver $fieldResolver,
+        private readonly BookingResolver $bookingResolver
     ) {}
 
     public function execute(string $query, array $variables = [], array $context = []): array
@@ -50,6 +52,55 @@ class GraphQLExecutor
             $data['field'] = GraphQLParser::filterSelection($result, $selectedFields);
         }
 
+        if (GraphQLParser::hasField($query, 'bookingsByMember')) {
+            $result = $this->bookingResolver->bookingsByMember($query, $context);
+            $selectedFields = GraphQLParser::selectedFields($query, 'bookingsByMember');
+
+            $data['bookingsByMember'] = GraphQLParser::filterSelection($result, $selectedFields);
+        }
+
+        if (GraphQLParser::hasField($query, 'bookingRequests')) {
+            $result = $this->bookingResolver->bookingRequests($context);
+            $selectedFields = GraphQLParser::selectedFields($query, 'bookingRequests');
+
+            $data['bookingRequests'] = GraphQLParser::filterSelection($result, $selectedFields);
+        }
+
+        if (GraphQLParser::hasField($query, 'myBookingHistory')) {
+            $result = $this->bookingResolver->myBookingHistory($context);
+            $selectedFields = GraphQLParser::selectedFields($query, 'myBookingHistory');
+
+            $data['myBookingHistory'] = GraphQLParser::filterSelection($result, $selectedFields);
+        }
+
+        if (GraphQLParser::hasField($query, 'myBookings')) {
+            $result = $this->bookingResolver->myBookings($context);
+            $selectedFields = GraphQLParser::selectedFields($query, 'myBookings');
+
+            $data['myBookings'] = GraphQLParser::filterSelection($result, $selectedFields);
+        }
+
+        if (GraphQLParser::hasField($query, 'fieldBookingSchedule')) {
+            $result = $this->bookingResolver->fieldBookingSchedule($query);
+            $selectedFields = GraphQLParser::selectedFields($query, 'fieldBookingSchedule');
+
+            $data['fieldBookingSchedule'] = GraphQLParser::filterSelection($result, $selectedFields);
+        }
+
+        if (GraphQLParser::hasField($query, 'bookings')) {
+            $result = $this->bookingResolver->bookings($query, $context);
+            $selectedFields = GraphQLParser::selectedFields($query, 'bookings');
+
+            $data['bookings'] = GraphQLParser::filterSelection($result, $selectedFields);
+        }
+
+        if (GraphQLParser::hasField($query, 'booking')) {
+            $result = $this->bookingResolver->booking($query, $context);
+            $selectedFields = GraphQLParser::selectedFields($query, 'booking');
+
+            $data['booking'] = GraphQLParser::filterSelection($result, $selectedFields);
+        }
+
         if (GraphQLParser::hasField($query, 'createField')) {
             $result = $this->fieldResolver->createField($query, $context);
             $selectedFields = GraphQLParser::selectedFields($query, 'createField');
@@ -76,6 +127,34 @@ class GraphQLExecutor
             $selectedFields = GraphQLParser::selectedFields($query, 'deleteField');
 
             $data['deleteField'] = GraphQLParser::filterSelection($result, $selectedFields);
+        }
+
+        if (GraphQLParser::hasField($query, 'createBooking')) {
+            $result = $this->bookingResolver->createBooking($query, $context);
+            $selectedFields = GraphQLParser::selectedFields($query, 'createBooking');
+
+            $data['createBooking'] = GraphQLParser::filterSelection($result, $selectedFields);
+        }
+
+        if (GraphQLParser::hasField($query, 'approveBooking')) {
+            $result = $this->bookingResolver->approveBooking($query, $context);
+            $selectedFields = GraphQLParser::selectedFields($query, 'approveBooking');
+
+            $data['approveBooking'] = GraphQLParser::filterSelection($result, $selectedFields);
+        }
+
+        if (GraphQLParser::hasField($query, 'rejectBooking')) {
+            $result = $this->bookingResolver->rejectBooking($query, $context);
+            $selectedFields = GraphQLParser::selectedFields($query, 'rejectBooking');
+
+            $data['rejectBooking'] = GraphQLParser::filterSelection($result, $selectedFields);
+        }
+
+        if (GraphQLParser::hasField($query, 'cancelBooking')) {
+            $result = $this->bookingResolver->cancelBooking($query, $context);
+            $selectedFields = GraphQLParser::selectedFields($query, 'cancelBooking');
+
+            $data['cancelBooking'] = GraphQLParser::filterSelection($result, $selectedFields);
         }
 
         if (empty($data)) {

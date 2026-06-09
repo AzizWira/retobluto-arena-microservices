@@ -28,17 +28,59 @@ type Field {
     updated_at: String
 }
 
-type MutationStatus {
-    success: Boolean
-    message: String
-    data: JSON
-    errors: JSON
-}
-
 type FieldMutationPayload {
     success: Boolean
     message: String
     field: Field
+    errors: JSON
+}
+
+type Booking {
+    id: ID
+    member_id: ID
+    member_user_id: ID
+    member_name: String
+    member_email: String
+    field_id: ID
+    field_name: String
+    field_type: String
+    booking_date: String
+    start_time: String
+    end_time: String
+    duration_hours: Int
+    price_per_hour: Float
+    total_price: Float
+    status: String
+    note: String
+    rejection_reason: String
+    approved_at: String
+    rejected_at: String
+    canceled_at: String
+    approved_by: String
+    rejected_by: String
+    canceled_by: String
+    created_at: String
+    updated_at: String
+}
+
+type BookingListPayload {
+    success: Boolean
+    message: String
+    bookings: [Booking]
+    errors: JSON
+}
+
+type BookingSinglePayload {
+    success: Boolean
+    message: String
+    booking: Booking
+    errors: JSON
+}
+
+type BookingMutationPayload {
+    success: Boolean
+    message: String
+    booking: Booking
     errors: JSON
 }
 
@@ -52,6 +94,30 @@ type Query {
     field(id: ID!): Field
 
     fieldSchedule(id: ID!, date: String): JSON
+
+    bookings(
+        status: String
+        booking_date: String
+        field_id: ID
+        member_id: ID
+        search: String
+    ): BookingListPayload
+
+    booking(id: ID!): BookingSinglePayload
+
+    myBookings: BookingListPayload
+
+    myBookingHistory: BookingListPayload
+
+    bookingRequests: BookingListPayload
+
+    fieldBookingSchedule(
+        field_id: ID!
+        date: String
+        status: String
+    ): BookingListPayload
+
+    bookingsByMember(member_id: ID!): BookingListPayload
 }
 
 type Mutation {
@@ -81,6 +147,20 @@ type Mutation {
     updateFieldStatus(id: ID!, status: String!): FieldMutationPayload
 
     deleteField(id: ID!): FieldMutationPayload
+
+    createBooking(
+        field_id: ID!
+        booking_date: String!
+        start_time: String!
+        end_time: String!
+        note: String
+    ): BookingMutationPayload
+
+    approveBooking(id: ID!): BookingMutationPayload
+
+    rejectBooking(id: ID!, rejection_reason: String): BookingMutationPayload
+
+    cancelBooking(id: ID!): BookingMutationPayload
 }
 
 schema {
