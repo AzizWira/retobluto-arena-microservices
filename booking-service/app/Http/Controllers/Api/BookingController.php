@@ -148,10 +148,18 @@ class BookingController extends Controller
             $member = $memberResponse['data'];
 
             if (($member['status'] ?? null) !== 'active') {
+                $memberStatus = $member['status'] ?? null;
+
+                $message = match ($memberStatus) {
+                    'inactive' => 'Member belum aktif sehingga tidak dapat melakukan booking.',
+                    'blocked' => 'Member diblokir sehingga tidak dapat melakukan booking.',
+                    default => 'Member tidak dapat melakukan booking karena status akun tidak valid.',
+                };
+
                 return response()->json([
                     'success' => false,
-                    'message' => 'Member tidak aktif sehingga tidak dapat melakukan booking.',
-                    'member_status' => $member['status'] ?? null,
+                    'message' => $message,
+                    'member_status' => $memberStatus,
                 ], 403);
             }
 
@@ -449,10 +457,14 @@ class BookingController extends Controller
                 ], 422);
             }
 
+            $adminName = $adminUser['name']
+                ?? $adminUser['email']
+                ?? 'Admin';
+
             $booking->update([
                 'status' => 'approved',
                 'approved_at' => now(),
-                'approved_by' => $adminUser['id'] ?? null,
+                'approved_by' => $adminName,
             ]);
 
             $this->publishBookingEvent('booking_approved', $booking->fresh());
@@ -504,11 +516,15 @@ class BookingController extends Controller
                 ], 422);
             }
 
+            $adminName = $adminUser['name']
+                ?? $adminUser['email']
+                ?? 'Admin';
+
             $booking->update([
                 'status' => 'rejected',
                 'rejection_reason' => $validated['rejection_reason'] ?? null,
                 'rejected_at' => now(),
-                'rejected_by' => $adminUser['id'] ?? null,
+                'rejected_by' => $adminName,
             ]);
 
             $this->publishBookingEvent('booking_rejected', $booking->fresh());
@@ -576,10 +592,14 @@ class BookingController extends Controller
                 ], 422);
             }
 
+            $memberName = $user['name']
+                ?? $user['email']
+                ?? 'Member';
+
             $booking->update([
                 'status' => 'canceled',
                 'canceled_at' => now(),
-                'canceled_by' => $user['id'],
+                'canceled_by' => $memberName,
             ]);
 
             $this->publishBookingEvent('booking_canceled', $booking->fresh());
