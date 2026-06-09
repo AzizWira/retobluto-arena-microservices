@@ -14,10 +14,76 @@ type Health {
     notification: ServiceHealth
 }
 
+type Field {
+    id: ID
+    name: String
+    type: String
+    description: String
+    location: String
+    price_per_hour: Float
+    status: String
+    open_time: String
+    close_time: String
+    created_at: String
+    updated_at: String
+}
+
+type MutationStatus {
+    success: Boolean
+    message: String
+    data: JSON
+    errors: JSON
+}
+
+type FieldMutationPayload {
+    success: Boolean
+    message: String
+    field: Field
+    errors: JSON
+}
+
 type Query {
     health: Health
+
+    fields(type: String, status: String, search: String): [Field]
+
+    availableFields: [Field]
+
+    field(id: ID!): Field
+
+    fieldSchedule(id: ID!, date: String): JSON
+}
+
+type Mutation {
+    createField(
+        name: String!
+        type: String!
+        description: String
+        location: String
+        price_per_hour: Float!
+        status: String
+        open_time: String
+        close_time: String
+    ): FieldMutationPayload
+
+    updateField(
+        id: ID!
+        name: String!
+        type: String!
+        description: String
+        location: String
+        price_per_hour: Float!
+        status: String!
+        open_time: String
+        close_time: String
+    ): FieldMutationPayload
+
+    updateFieldStatus(id: ID!, status: String!): FieldMutationPayload
+
+    deleteField(id: ID!): FieldMutationPayload
 }
 
 schema {
     query: Query
+    mutation: Mutation
 }

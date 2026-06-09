@@ -9,6 +9,36 @@ class GraphQLParser
         return preg_match('/(^|[\s{])' . preg_quote($field, '/') . '(\s|\(|\{)/', $query) === 1;
     }
 
+    public static function args(string $query, string $field): array
+    {
+        $pattern = '/(^|[\s{])' . preg_quote($field, '/') . '\s*\((.*?)\)/s';
+
+        if (!preg_match($pattern, $query, $matches)) {
+            return [];
+        }
+
+        $argsString = trim($matches[2]);
+
+        if ($argsString === '') {
+            return [];
+        }
+
+        $args = [];
+
+        preg_match_all(
+            '/([A-Za-z_][A-Za-z0-9_]*)\s*:\s*("[^"]*"|true|false|null|-?\d+(?:\.\d+)?)/',
+            $argsString,
+            $matches,
+            PREG_SET_ORDER
+        );
+
+        foreach ($matches as $match) {
+            $args[$match[1]] = self::parseValue($match[2]);
+        }
+
+        return $args;
+    }
+
     public static function selectedFields(string $query, string $field): array
     {
         $pattern = '/(^|[\s{])' . preg_quote($field, '/') . '\s*(?:\([^)]*\))?\s*\{/s';
@@ -119,5 +149,32 @@ class GraphQLParser
         }
 
         return array_values(array_unique(array_filter($fields)));
+    }
+
+    private static function parseValue(string $value): mixed
+    {
+        $value = trim($value);
+
+        if (str_starts_with($value, '"') && str_ends_with($value, '"')) {
+            return trim($value, '"');
+        }
+
+        if ($value === 'true') {
+            return true;
+        }
+
+        if ($value === 'false') {
+            return false;
+        }
+
+        if ($value === 'null') {
+            return null;
+        }
+
+        if (is_numeric($value)) {
+            return str_contains($value, '.') ? (float) $value : (int) $value;
+        }
+
+        return $value;
     }
 }
