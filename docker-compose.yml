@@ -1,9 +1,15 @@
 services:
+  # redis:
+  #   image: redis:7-alpine
+  #   container_name: retobluto_redis
+  #   ports:
+  #     - "6379:6379"
+  #   networks:
+  #     - retobluto_network
   redis:
     image: redis:7-alpine
     container_name: retobluto_redis
-    ports:
-      - "6379:6379"
+    restart: unless-stopped
     networks:
       - retobluto_network
 
@@ -173,6 +179,24 @@ services:
     volumes:
       - ./notification-service:/var/www/html
     command: php artisan notifications:listen-redis
+    networks:
+      - retobluto_network
+
+  web-client:
+    build:
+      context: ./web-client
+    container_name: retobluto_web_client
+    restart: unless-stopped
+    ports:
+      - "8090:8000"
+    depends_on:
+      - auth-service
+      - member-service
+      - field-service
+      - booking-service
+      - notification-service
+    volumes:
+      - ./web-client:/var/www/html
     networks:
       - retobluto_network
 
