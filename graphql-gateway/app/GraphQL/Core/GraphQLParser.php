@@ -6,18 +6,26 @@ class GraphQLParser
 {
     public static function hasField(string $query, string $field): bool
     {
-        return preg_match('/(^|[\s{])' . preg_quote($field, '/') . '(\s|\(|\{)/', $query) === 1;
+        return self::findTopLevelField($query, $field) !== null;
     }
 
     public static function args(string $query, string $field): array
     {
-        $pattern = '/(^|[\s{])' . preg_quote($field, '/') . '\s*\((.*?)\)/s';
+        $found = self::findTopLevelField($query, $field);
 
-        if (!preg_match($pattern, $query, $matches)) {
+        if (!$found) {
             return [];
         }
 
-        $argsString = trim($matches[2]);
+        $i = self::skipWhitespace($query, $found['end']);
+
+        if (!isset($query[$i]) || $query[$i] !== '(') {
+            return [];
+        }
+
+        [$argsString] = self::readBalanced($query, $i, '(', ')');
+
+        $argsString = trim($argsString);
 
         if ($argsString === '') {
             return [];
@@ -41,43 +49,24 @@ class GraphQLParser
 
     public static function selectedFields(string $query, string $field): array
     {
-        $pattern = '/(^|[\s{])' . preg_quote($field, '/') . '\s*(?:\([^)]*\))?\s*\{/s';
+        $found = self::findTopLevelField($query, $field);
 
-        if (!preg_match($pattern, $query, $matches, PREG_OFFSET_CAPTURE)) {
+        if (!$found) {
             return [];
         }
 
-        $matchText = $matches[0][0];
-        $matchOffset = $matches[0][1];
-        $openBraceOffset = $matchOffset + strrpos($matchText, '{');
+        $i = self::skipWhitespace($query, $found['end']);
 
-        $length = strlen($query);
-        $depth = 0;
-        $bodyStart = $openBraceOffset + 1;
-        $bodyEnd = null;
-
-        for ($i = $openBraceOffset; $i < $length; $i++) {
-            $char = $query[$i];
-
-            if ($char === '{') {
-                $depth++;
-            }
-
-            if ($char === '}') {
-                $depth--;
-
-                if ($depth === 0) {
-                    $bodyEnd = $i;
-                    break;
-                }
-            }
+        if (isset($query[$i]) && $query[$i] === '(') {
+            [, $i] = self::readBalanced($query, $i, '(', ')');
+            $i = self::skipWhitespace($query, $i);
         }
 
-        if ($bodyEnd === null) {
+        if (!isset($query[$i]) || $query[$i] !== '{') {
             return [];
         }
 
-        $body = substr($query, $bodyStart, $bodyEnd - $bodyStart);
+        [$body] = self::readBalanced($query, $i, '{', '}');
 
         return self::parseTopLevelSelectedFields($body);
     }
@@ -104,15 +93,285 @@ class GraphQLParser
         return array_intersect_key($data, array_flip($selectedFields));
     }
 
+    private static function findTopLevelField(string $query, string $field): ?array
+    {
+        $bounds = self::operationBounds($query);
+
+        if (!$bounds) {
+            return null;
+        }
+
+        [$start, $end] = $bounds;
+
+        $i = $start + 1;
+        $depth = 0;
+        $paren = 0;
+        $inString = false;
+        $escape = false;
+        $length = strlen($query);
+
+        while ($i < $end && $i < $length) {
+            $char = $query[$i];
+
+            if ($inString) {
+                if ($escape) {
+                    $escape = false;
+                    $i++;
+                    continue;
+                }
+
+                if ($char === '\\') {
+                    $escape = true;
+                    $i++;
+                    continue;
+                }
+
+                if ($char === '"') {
+                    $inString = false;
+                }
+
+                $i++;
+                continue;
+            }
+
+            if ($char === '"') {
+                $inString = true;
+                $i++;
+                continue;
+            }
+
+            if ($paren > 0) {
+                if ($char === '(') {
+                    $paren++;
+                } elseif ($char === ')') {
+                    $paren--;
+                }
+
+                $i++;
+                continue;
+            }
+
+            if ($char === '(') {
+                $paren++;
+                $i++;
+                continue;
+            }
+
+            if ($char === '{') {
+                $depth++;
+                $i++;
+                continue;
+            }
+
+            if ($char === '}') {
+                if ($depth > 0) {
+                    $depth--;
+                }
+
+                $i++;
+                continue;
+            }
+
+            if ($depth === 0 && preg_match('/[A-Za-z_]/', $char)) {
+                $tokenStart = $i;
+                $token = '';
+
+                while (
+                    $i < $end
+                    && isset($query[$i])
+                    && preg_match('/[A-Za-z0-9_]/', $query[$i])
+                ) {
+                    $token .= $query[$i];
+                    $i++;
+                }
+
+                if ($token === $field) {
+                    return [
+                        'start' => $tokenStart,
+                        'end' => $i,
+                    ];
+                }
+
+                continue;
+            }
+
+            $i++;
+        }
+
+        return null;
+    }
+
+    private static function operationBounds(string $query): ?array
+    {
+        $start = strpos($query, '{');
+
+        if ($start === false) {
+            return null;
+        }
+
+        $depth = 0;
+        $inString = false;
+        $escape = false;
+        $length = strlen($query);
+
+        for ($i = $start; $i < $length; $i++) {
+            $char = $query[$i];
+
+            if ($inString) {
+                if ($escape) {
+                    $escape = false;
+                    continue;
+                }
+
+                if ($char === '\\') {
+                    $escape = true;
+                    continue;
+                }
+
+                if ($char === '"') {
+                    $inString = false;
+                }
+
+                continue;
+            }
+
+            if ($char === '"') {
+                $inString = true;
+                continue;
+            }
+
+            if ($char === '{') {
+                $depth++;
+            }
+
+            if ($char === '}') {
+                $depth--;
+
+                if ($depth === 0) {
+                    return [$start, $i];
+                }
+            }
+        }
+
+        return null;
+    }
+
+    private static function readBalanced(string $query, int $start, string $open, string $close): array
+    {
+        $depth = 0;
+        $inString = false;
+        $escape = false;
+        $bodyStart = $start + 1;
+        $length = strlen($query);
+
+        for ($i = $start; $i < $length; $i++) {
+            $char = $query[$i];
+
+            if ($inString) {
+                if ($escape) {
+                    $escape = false;
+                    continue;
+                }
+
+                if ($char === '\\') {
+                    $escape = true;
+                    continue;
+                }
+
+                if ($char === '"') {
+                    $inString = false;
+                }
+
+                continue;
+            }
+
+            if ($char === '"') {
+                $inString = true;
+                continue;
+            }
+
+            if ($char === $open) {
+                $depth++;
+            }
+
+            if ($char === $close) {
+                $depth--;
+
+                if ($depth === 0) {
+                    return [
+                        substr($query, $bodyStart, $i - $bodyStart),
+                        $i + 1,
+                    ];
+                }
+            }
+        }
+
+        return ['', $start];
+    }
+
+    private static function skipWhitespace(string $query, int $start): int
+    {
+        $length = strlen($query);
+
+        while ($start < $length && ctype_space($query[$start])) {
+            $start++;
+        }
+
+        return $start;
+    }
+
     private static function parseTopLevelSelectedFields(string $body): array
     {
         $fields = [];
         $length = strlen($body);
         $depth = 0;
+        $paren = 0;
+        $inString = false;
+        $escape = false;
         $current = '';
 
         for ($i = 0; $i < $length; $i++) {
             $char = $body[$i];
+
+            if ($inString) {
+                if ($escape) {
+                    $escape = false;
+                    continue;
+                }
+
+                if ($char === '\\') {
+                    $escape = true;
+                    continue;
+                }
+
+                if ($char === '"') {
+                    $inString = false;
+                }
+
+                continue;
+            }
+
+            if ($char === '"') {
+                $inString = true;
+                continue;
+            }
+
+            if ($char === '(') {
+                $paren++;
+                continue;
+            }
+
+            if ($char === ')') {
+                if ($paren > 0) {
+                    $paren--;
+                }
+
+                continue;
+            }
+
+            if ($paren > 0) {
+                continue;
+            }
 
             if ($char === '{') {
                 if ($current !== '') {
@@ -125,7 +384,10 @@ class GraphQLParser
             }
 
             if ($char === '}') {
-                $depth--;
+                if ($depth > 0) {
+                    $depth--;
+                }
+
                 continue;
             }
 
@@ -156,7 +418,7 @@ class GraphQLParser
         $value = trim($value);
 
         if (str_starts_with($value, '"') && str_ends_with($value, '"')) {
-            return trim($value, '"');
+            return stripcslashes(substr($value, 1, -1));
         }
 
         if ($value === 'true') {

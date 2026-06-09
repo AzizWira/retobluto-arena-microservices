@@ -14,6 +14,29 @@ type Health {
     notification: ServiceHealth
 }
 
+type User {
+    id: ID
+    name: String
+    email: String
+    role: String
+    is_verified: Boolean
+    email_verified_at: String
+    created_at: String
+    updated_at: String
+}
+
+type Member {
+    id: ID
+    user_id: ID
+    name: String
+    email: String
+    phone: String
+    address: String
+    status: String
+    created_at: String
+    updated_at: String
+}
+
 type Field {
     id: ID
     name: String
@@ -26,13 +49,6 @@ type Field {
     close_time: String
     created_at: String
     updated_at: String
-}
-
-type FieldMutationPayload {
-    success: Boolean
-    message: String
-    field: Field
-    errors: JSON
 }
 
 type Booking {
@@ -63,6 +79,27 @@ type Booking {
     updated_at: String
 }
 
+type NotificationLog {
+    id: ID
+    recipient_email: String
+    type: String
+    subject: String
+    message: String
+    status: String
+    payload: JSON
+    sent_at: String
+    error_message: String
+    created_at: String
+    updated_at: String
+}
+
+type FieldMutationPayload {
+    success: Boolean
+    message: String
+    field: Field
+    errors: JSON
+}
+
 type BookingListPayload {
     success: Boolean
     message: String
@@ -84,8 +121,92 @@ type BookingMutationPayload {
     errors: JSON
 }
 
+type AuthPayload {
+    success: Boolean
+    message: String
+    valid: Boolean
+    user: User
+    data: JSON
+    errors: JSON
+}
+
+type AdminCreateMemberPayload {
+    success: Boolean
+    message: String
+    user: User
+    member: Member
+    data: JSON
+    errors: JSON
+}
+
+type MemberListPayload {
+    success: Boolean
+    message: String
+    members: [Member]
+    errors: JSON
+}
+
+type MemberSinglePayload {
+    success: Boolean
+    message: String
+    member: Member
+    errors: JSON
+}
+
+type MemberMutationPayload {
+    success: Boolean
+    message: String
+    member: Member
+    data: JSON
+    errors: JSON
+}
+
+type NotificationLogListPayload {
+    success: Boolean
+    message: String
+    logs: [NotificationLog]
+    errors: JSON
+}
+
+type NotificationLogSinglePayload {
+    success: Boolean
+    message: String
+    log: NotificationLog
+    errors: JSON
+}
+
+type DashboardSummary {
+    success: Boolean
+    message: String
+
+    fields_total: Int
+    fields_available: Int
+    fields_maintenance: Int
+    fields_inactive: Int
+
+    members_total: Int
+    members_active: Int
+    members_inactive: Int
+    members_blocked: Int
+
+    bookings_total: Int
+    bookings_pending: Int
+    bookings_approved: Int
+    bookings_rejected: Int
+    bookings_canceled: Int
+
+    notifications_total: Int
+    notifications_sent: Int
+    notifications_failed: Int
+
+    errors: JSON
+}
+
 type Query {
     health: Health
+
+    me: AuthPayload
+    validateToken: AuthPayload
 
     fields(type: String, status: String, search: String): [Field]
 
@@ -118,6 +239,24 @@ type Query {
     ): BookingListPayload
 
     bookingsByMember(member_id: ID!): BookingListPayload
+
+    members(status: String, search: String): MemberListPayload
+
+    member(id: ID!): MemberSinglePayload
+
+    memberByUserId(user_id: ID!): MemberSinglePayload
+
+    myProfile: MemberSinglePayload
+
+    notificationLogs(
+        type: String
+        status: String
+        search: String
+    ): NotificationLogListPayload
+
+    notificationLog(id: ID!): NotificationLogSinglePayload
+
+    dashboardSummary: DashboardSummary
 }
 
 type Mutation {
@@ -161,6 +300,36 @@ type Mutation {
     rejectBooking(id: ID!, rejection_reason: String): BookingMutationPayload
 
     cancelBooking(id: ID!): BookingMutationPayload
+
+    adminCreateMember(
+        name: String!
+        email: String!
+        password: String!
+        phone: String
+        address: String
+    ): AdminCreateMemberPayload
+
+    deleteMemberAuthAccount(user_id: ID, email: String): AuthPayload
+
+    updateProfile(
+        name: String
+        phone: String
+        address: String
+    ): MemberMutationPayload
+
+    updateMember(
+        id: ID!
+        user_id: ID
+        name: String!
+        email: String!
+        phone: String
+        address: String
+        status: String!
+    ): MemberMutationPayload
+
+    updateMemberStatus(id: ID!, status: String!): MemberMutationPayload
+
+    deleteMember(id: ID!): MemberMutationPayload
 }
 
 schema {
