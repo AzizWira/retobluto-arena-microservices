@@ -437,23 +437,45 @@ class MemberController extends Controller
                 'email' => 'required|email|max:150',
                 'phone' => 'nullable|string|max:20',
                 'address' => 'nullable|string',
+                'status' => ['nullable', Rule::in($this->allowedStatuses)],
             ]);
 
-            $member = Member::updateOrCreate(
-                ['user_id' => $validated['user_id']],
-                [
+            $member = Member::where('user_id', $validated['user_id'])->first();
+
+            if ($member) {
+                $updateData = [
+                    'name' => $validated['name'],
+                    'email' => $validated['email'],
+                ];
+
+                if ($request->has('phone')) {
+                    $updateData['phone'] = $validated['phone'] ?? null;
+                }
+
+                if ($request->has('address')) {
+                    $updateData['address'] = $validated['address'] ?? null;
+                }
+
+                if ($request->has('status')) {
+                    $updateData['status'] = $validated['status'];
+                }
+
+                $member->update($updateData);
+            } else {
+                $member = Member::create([
+                    'user_id' => $validated['user_id'],
                     'name' => $validated['name'],
                     'email' => $validated['email'],
                     'phone' => $validated['phone'] ?? null,
                     'address' => $validated['address'] ?? null,
-                    'status' => 'active',
-                ]
-            );
+                    'status' => $validated['status'] ?? 'active',
+                ]);
+            }
 
             return response()->json([
                 'success' => true,
                 'message' => 'Profil member berhasil disinkronkan dari Auth Service',
-                'data' => $member,
+                'data' => $member->fresh(),
             ], 201);
         } catch (ValidationException $e) {
             return response()->json([
