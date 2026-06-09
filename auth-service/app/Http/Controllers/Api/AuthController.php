@@ -28,6 +28,151 @@ class AuthController extends Controller
         return $this->loginByRole($request, 'member');
     }
 
+    public function adminCreateMember(Request $request)
+    {
+        try {
+            $admin = auth('api')->user();
+
+            if (!$admin || $admin->role !== 'admin') {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Akses hanya untuk admin.',
+                ], 403);
+            }
+
+            $validated = $request->validate([
+                'name' => 'required|string|max:100',
+                'email' => 'required|email|max:150|unique:users,email',
+                'password' => 'required|string|min:6',
+                'phone' => 'nullable|string|max:20',
+                'address' => 'nullable|string',
+            ]);
+
+            $user = User::create([
+                'name' => $validated['name'],
+                'email' => $validated['email'],
+                'password' => Hash::make($validated['password']),
+                'role' => 'member',
+                'is_verified' => false,
+                'email_verified_at' => null,
+            ]);
+
+            $memberSyncResult = $this->syncMemberProfile($user, [
+                'phone' => $validated['phone'] ?? null,
+                'address' => $validated['address'] ?? null,
+                'status' => 'inactive',
+            ]);
+
+            if (!$memberSyncResult['success']) {
+                $user->delete();
+
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Member gagal dibuat karena profil member tidak dapat disinkronkan',
+                    'member_sync' => $memberSyncResult,
+                ], 502);
+            }
+
+            $otpData = $this->createOtpForVerification($user->name, $user->email, $user->password);
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Member berhasil dibuat oleh admin. Akun perlu verifikasi OTP sebelum aktif.',
+                'data' => [
+                    'user' => $this->userPayload($user),
+                    'member_sync' => $memberSyncResult,
+                    'otp_debug' => config('app.debug') ? $otpData['otp'] : null,
+                    'expired_in_minutes' => 10,
+                ],
+            ], 201);
+        } catch (ValidationException $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Validasi gagal',
+                'errors' => $e->errors(),
+            ], 422);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Gagal membuat member dari admin',
+                'error' => $e->getMessage(),
+            ], 500);
+        }
+    }
+
+    public function adminDeleteMemberAuthAccount(Request $request)
+    {
+        try {
+            $admin = auth('api')->user();
+
+            if (!$admin || $admin->role !== 'admin') {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Akses ditolak. Hanya admin yang dapat menghapus akun member.',
+                ], 403);
+            }
+
+            $validated = $request->validate([
+                'user_id' => ['nullable', 'integer'],
+                'email' => ['nullable', 'email'],
+            ]);
+
+            if (empty($validated['user_id']) && empty($validated['email'])) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'user_id atau email wajib dikirim.',
+                ], 422);
+            }
+
+            $query = User::where('role', 'member');
+
+            if (!empty($validated['user_id'])) {
+                $query->where('id', $validated['user_id']);
+            } else {
+                $query->where('email', strtolower($validated['email']));
+            }
+
+            $user = $query->first();
+
+            if (!$user) {
+                return response()->json([
+                    'success' => true,
+                    'message' => 'Akun Auth Service tidak ditemukan atau sudah terhapus.',
+                    'data' => [
+                        'deleted' => false,
+                    ],
+                ]);
+            }
+
+            $email = $user->email;
+
+            OtpCode::where('email', $email)->delete();
+
+            $user->delete();
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Akun member di Auth Service berhasil dihapus.',
+                'data' => [
+                    'deleted' => true,
+                    'email' => $email,
+                ],
+            ]);
+        } catch (ValidationException $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Validasi gagal',
+                'errors' => $e->errors(),
+            ], 422);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Gagal menghapus akun member dari Auth Service.',
+                'error' => $e->getMessage(),
+            ], 500);
+        }
+    }
+
     private function loginByRole(Request $request, string $role)
     {
         try {
@@ -48,9 +193,18 @@ class AuthController extends Controller
             }
 
             if ($role === 'member' && !$user->is_verified) {
+                $otpData = $this->createOtpForVerification($user->name, $user->email, $user->password);
+
                 return response()->json([
                     'success' => false,
-                    'message' => 'Akun member belum diverifikasi',
+                    'requires_otp' => true,
+                    'message' => 'Akun member belum diverifikasi. Kode OTP telah dibuat.',
+                    'data' => [
+                        'email' => $user->email,
+                        'name' => $user->name,
+                        'expired_in_minutes' => 10,
+                        'otp_debug' => config('app.debug') ? $otpData['otp'] : null,
+                    ],
                 ], 403);
             }
 
@@ -169,31 +323,66 @@ class AuthController extends Controller
             $existingUser = User::where('email', $otpRecord->email)->first();
 
             if ($existingUser) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Email sudah terdaftar',
-                ], 409);
-            }
+                if ($existingUser->role !== 'member') {
+                    return response()->json([
+                        'success' => false,
+                        'message' => 'Email ini bukan akun member.',
+                    ], 409);
+                }
 
-            $user = User::create([
-                'name' => $otpRecord->name,
-                'email' => $otpRecord->email,
-                'password' => $otpRecord->password_hash,
-                'role' => 'member',
-                'is_verified' => true,
-                'email_verified_at' => now(),
-            ]);
+                if ($existingUser->is_verified) {
+                    return response()->json([
+                        'success' => false,
+                        'message' => 'Akun member sudah diverifikasi.',
+                    ], 409);
+                }
 
-            $memberSyncResult = $this->syncMemberProfile($user);
+                $existingUser->update([
+                    'is_verified' => true,
+                    'email_verified_at' => now(),
+                ]);
 
-            if (!$memberSyncResult['success']) {
-                $user->delete();
+                $user = $existingUser->fresh();
 
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Registrasi gagal karena profil member tidak dapat dibuat',
-                    'member_sync' => $memberSyncResult,
-                ], 502);
+                $memberSyncResult = $this->syncMemberProfile($user, [
+                    'status' => 'active',
+                ]);
+
+                if (!$memberSyncResult['success']) {
+                    $user->update([
+                        'is_verified' => false,
+                        'email_verified_at' => null,
+                    ]);
+
+                    return response()->json([
+                        'success' => false,
+                        'message' => 'Verifikasi gagal karena status profil member tidak dapat diaktifkan',
+                        'member_sync' => $memberSyncResult,
+                    ], 502);
+                }
+            } else {
+                $user = User::create([
+                    'name' => $otpRecord->name,
+                    'email' => $otpRecord->email,
+                    'password' => $otpRecord->password_hash,
+                    'role' => 'member',
+                    'is_verified' => true,
+                    'email_verified_at' => now(),
+                ]);
+
+                $memberSyncResult = $this->syncMemberProfile($user, [
+                    'status' => 'active',
+                ]);
+
+                if (!$memberSyncResult['success']) {
+                    $user->delete();
+
+                    return response()->json([
+                        'success' => false,
+                        'message' => 'Registrasi gagal karena profil member tidak dapat dibuat',
+                        'member_sync' => $memberSyncResult,
+                    ], 502);
+                }
             }
 
             $otpRecord->update([
@@ -208,14 +397,14 @@ class AuthController extends Controller
                     'email' => $user->email,
                 ]));
             } catch (\Exception $e) {
-                // Event tidak menggagalkan proses registrasi.
+                //
             }
 
             $token = JWTAuth::fromUser($user);
 
             return response()->json([
                 'success' => true,
-                'message' => 'Registrasi member berhasil',
+                'message' => 'Verifikasi member berhasil',
                 'token_type' => 'Bearer',
                 'access_token' => $token,
                 'expires_in' => (int) config('jwt.ttl', 60) * 60,
@@ -232,6 +421,98 @@ class AuthController extends Controller
             return response()->json([
                 'success' => false,
                 'message' => 'Terjadi kesalahan saat verifikasi OTP',
+                'error' => $e->getMessage(),
+            ], 500);
+        }
+    }
+
+    public function resendMemberOtp(Request $request)
+    {
+        try {
+            $validated = $request->validate([
+                'email' => ['required', 'email'],
+            ]);
+
+            $email = strtolower($validated['email']);
+
+            $existingUser = User::where('email', $email)
+                ->where('role', 'member')
+                ->first();
+
+            if ($existingUser && $existingUser->is_verified) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Akun member sudah terverifikasi. Silakan login.',
+                ], 422);
+            }
+
+            if ($existingUser) {
+                $name = $existingUser->name;
+                $passwordHash = $existingUser->password;
+            } else {
+                $previousOtp = OtpCode::where('email', $email)
+                    ->whereNull('verified_at')
+                    ->latest()
+                    ->first();
+
+                if (!$previousOtp) {
+                    return response()->json([
+                        'success' => false,
+                        'message' => 'Data OTP sebelumnya tidak ditemukan. Silakan register ulang.',
+                    ], 404);
+                }
+
+                $name = $previousOtp->name;
+                $passwordHash = $previousOtp->password_hash;
+            }
+
+            OtpCode::where('email', $email)
+                ->whereNull('verified_at')
+                ->delete();
+
+            $otp = (string) random_int(100000, 999999);
+            $expiresAt = now()->addMinutes(10);
+
+            OtpCode::create([
+                'name' => $name,
+                'email' => $email,
+                'password_hash' => $passwordHash,
+                'otp_hash' => Hash::make($otp),
+                'expires_at' => $expiresAt,
+                'verified_at' => null,
+            ]);
+
+            try {
+                Redis::publish('otp_requested', json_encode([
+                    'type' => 'otp_requested',
+                    'email' => $email,
+                    'name' => $name,
+                    'otp' => $otp,
+                    'expired_at' => $expiresAt->toDateTimeString(),
+                ]));
+            } catch (\Exception $e) {
+                // Redis/email tidak menggagalkan pembuatan ulang OTP.
+            }
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Kode OTP baru berhasil dikirim.',
+                'data' => [
+                    'email' => $email,
+                    'expired_in_minutes' => 10,
+                    'otp_debug' => config('app.debug') ? $otp : null,
+                ],
+            ], 200);
+        } catch (ValidationException $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Validasi gagal',
+                'errors' => $e->errors(),
+            ], 422);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Gagal mengirim ulang OTP',
                 'error' => $e->getMessage(),
             ], 500);
         }
@@ -354,28 +635,34 @@ class AuthController extends Controller
         }
     }
 
-    private function syncMemberProfile(User $user): array
+    private function syncMemberProfile(User $user, array $profileData = []): array
     {
         try {
             $memberServiceUrl = rtrim(env('MEMBER_SERVICE_URL', 'http://member-service:8000'), '/');
+
+            $payload = [
+                'user_id' => $user->id,
+                'name' => $user->name,
+                'email' => $user->email,
+            ];
+
+            foreach (['phone', 'address', 'status'] as $key) {
+                if (array_key_exists($key, $profileData)) {
+                    $payload[$key] = $profileData[$key];
+                }
+            }
 
             $response = Http::timeout(5)
                 ->withHeaders([
                     'X-INTERNAL-SECRET' => env('INTERNAL_SERVICE_SECRET', 'retobluto_internal_secret'),
                     'Accept' => 'application/json',
                 ])
-                ->post($memberServiceUrl . '/api/internal/members/sync-from-auth', [
-                    'user_id' => $user->id,
-                    'name' => $user->name,
-                    'email' => $user->email,
-                    'phone' => null,
-                    'address' => null,
-                ]);
+                ->post($memberServiceUrl . '/api/internal/members/sync-from-auth', $payload);
 
             if (!$response->successful()) {
                 return [
                     'success' => false,
-                    'message' => 'Member Service gagal membuat profil member',
+                    'message' => 'Member Service gagal membuat atau memperbarui profil member',
                     'status' => $response->status(),
                     'response' => $response->json(),
                 ];
@@ -383,7 +670,7 @@ class AuthController extends Controller
 
             return [
                 'success' => true,
-                'message' => 'Profil member berhasil dibuat di Member Service',
+                'message' => 'Profil member berhasil disinkronkan di Member Service',
                 'response' => $response->json(),
             ];
         } catch (\Exception $e) {
@@ -393,6 +680,41 @@ class AuthController extends Controller
                 'error' => $e->getMessage(),
             ];
         }
+    }
+
+    private function createOtpForVerification(string $name, string $email, string $passwordHash): array
+    {
+        $otp = (string) random_int(100000, 999999);
+        $expiresAt = now()->addMinutes(10);
+
+        OtpCode::where('email', $email)
+            ->whereNull('verified_at')
+            ->delete();
+
+        OtpCode::create([
+            'name' => $name,
+            'email' => $email,
+            'password_hash' => $passwordHash,
+            'otp_hash' => Hash::make($otp),
+            'expires_at' => $expiresAt,
+        ]);
+
+        try {
+            Redis::publish('otp_requested', json_encode([
+                'type' => 'otp_requested',
+                'email' => $email,
+                'name' => $name,
+                'otp' => $otp,
+                'expired_at' => $expiresAt->toDateTimeString(),
+            ]));
+        } catch (\Exception $e) {
+            //
+        }
+
+        return [
+            'otp' => $otp,
+            'expires_at' => $expiresAt,
+        ];
     }
 
     private function respondWithToken(string $token, User $user, string $message)
