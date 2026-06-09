@@ -200,6 +200,26 @@ services:
     networks:
       - retobluto_network
 
+  graphql-gateway:
+    build:
+      context: ./graphql-gateway
+    container_name: retobluto_graphql_gateway
+    restart: unless-stopped
+    ports:
+      - "8010:8000"
+    depends_on:
+      - auth-service
+      - member-service
+      - field-service
+      - booking-service
+      - notification-service
+    env_file:
+      - ./graphql-gateway/.env
+    volumes:
+      - ./graphql-gateway:/var/www/html
+    networks:
+      - retobluto_network
+
   hasura-db:
     image: postgres:15
     container_name: retobluto_hasura_db
