@@ -54,7 +54,7 @@ Data -> SQL
 Lalu copy seluruh isi file:
 
 ```text
-hasura/local/reporting-schema.sql
+hasura/local/schema/reporting-schema.sql
 ```
 
 Paste ke SQL editor Hasura, lalu klik:

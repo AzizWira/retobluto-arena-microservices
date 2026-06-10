@@ -47,12 +47,12 @@ Hasura tidak digunakan untuk menggantikan REST API utama dan tidak digunakan unt
 ## File Penting
 
 ```text
-reporting-schema.sql                 -> SQL schema untuk tabel dan view reporting
-setup-guide.md                       -> panduan setup Hasura local
-field-member-queries.md              -> contoh query field dan member
-booking-queries.md                   -> contoh query booking
-notification-dashboard-queries.md    -> contoh query notification dan dashboard
-query-examples.md                    -> kumpulan query utama Hasura
+schema/reporting-schema.sql              -> SQL schema untuk tabel dan view reporting
+setup-guide.md                           -> panduan setup Hasura local
+queries/field-member-queries.md          -> contoh query field dan member
+queries/booking-queries.md               -> contoh query booking
+queries/notification-dashboard-queries.md -> contoh query notification dan dashboard
+queries/query-examples.md                -> kumpulan query utama Hasura
 ```
 
 ## Alasan Menggunakan Hasura Local
