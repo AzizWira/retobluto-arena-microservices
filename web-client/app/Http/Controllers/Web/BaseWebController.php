@@ -79,10 +79,10 @@ class BaseWebController extends Controller
             ->baseUrl(rtrim(env('BOOKING_SERVICE_URL'), '/'));
     }
 
-    protected function notificationClient(int $timeout = 6)
+    protected function notificationClient(int $timeout = 20)
     {
         return Http::acceptJson()
-            ->connectTimeout(2)
+            ->connectTimeout(5)
             ->timeout($timeout)
             ->withToken($this->token())
             ->baseUrl(rtrim(env('NOTIFICATION_SERVICE_URL'), '/'));

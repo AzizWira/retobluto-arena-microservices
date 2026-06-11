@@ -78,7 +78,7 @@ class NotificationController extends BaseWebController
         ]);
 
         try {
-            $response = $this->notificationClient()->post('/api/notifications/send-email', $validated);
+            $response = $this->notificationClient(30)->post('/api/notifications/send-email', $validated);
         } catch (\Exception $e) {
             return back()
                 ->withInput()
