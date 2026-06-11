@@ -10,6 +10,7 @@ use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
+use App\Services\EmailTemplateService;
 
 class NotificationController extends Controller
 {
@@ -281,9 +282,17 @@ class NotificationController extends Controller
         array $payload = []
     ): NotificationLog {
         try {
-            Mail::raw($message, function ($mail) use ($recipientEmail, $subject) {
+            $html = app(EmailTemplateService::class)->render(
+                type: $type,
+                subject: $subject,
+                message: $message,
+                payload: $payload
+            );
+
+            Mail::send([], [], function ($mail) use ($recipientEmail, $subject, $html) {
                 $mail->to($recipientEmail)
-                    ->subject($subject);
+                    ->subject($subject)
+                    ->html($html);
             });
 
             return NotificationLog::create([

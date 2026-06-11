@@ -6,6 +6,7 @@ use App\Models\NotificationLog;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Redis;
+use App\Services\EmailTemplateService;
 
 class ListenNotificationEvents extends Command
 {
@@ -149,9 +150,17 @@ class ListenNotificationEvents extends Command
         array $payload = []
     ): void {
         try {
-            Mail::raw($message, function ($mail) use ($recipientEmail, $subject) {
+            $html = app(EmailTemplateService::class)->render(
+                type: $type,
+                subject: $subject,
+                message: $message,
+                payload: $payload
+            );
+
+            Mail::send([], [], function ($mail) use ($recipientEmail, $subject, $html) {
                 $mail->to($recipientEmail)
-                    ->subject($subject);
+                    ->subject($subject)
+                    ->html($html);
             });
 
             NotificationLog::create([
