@@ -113,13 +113,25 @@ retobluto_hasura
 
 ## 7. Jalankan Migration dan Seeder
 
+Jalankan migration untuk semua service utama:
+
 ```bash
-docker compose exec auth-service php artisan migrate --seed
-docker compose exec member-service php artisan migrate --seed
-docker compose exec field-service php artisan migrate --seed
-docker compose exec booking-service php artisan migrate --seed
-docker compose exec notification-service php artisan migrate --seed
+docker compose exec auth-service php artisan migrate
+docker compose exec member-service php artisan migrate
+docker compose exec field-service php artisan migrate
+docker compose exec booking-service php artisan migrate
+docker compose exec notification-service php artisan migrate
 ```
+
+Setelah migration selesai, jalankan seeder hanya pada service yang memiliki data awal:
+
+```bash
+docker compose exec auth-service php artisan db:seed
+docker compose exec member-service php artisan db:seed
+docker compose exec field-service php artisan db:seed
+```
+
+Seeder digunakan untuk menyiapkan data awal seperti akun admin default, contoh member, dan contoh lapangan. Booking Service dan Notification Service tidak perlu dijalankan seedernya karena data booking dan log notifikasi akan terbentuk dari proses penggunaan sistem.
 
 ## 8. Akun Admin Default
 

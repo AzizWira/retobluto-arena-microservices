@@ -152,13 +152,25 @@ docker compose up -d --build
 
 ### 5. Jalankan migration dan seeder
 
+Jalankan migration untuk semua service utama:
+
 ```bash
-docker compose exec auth-service php artisan migrate --seed
-docker compose exec member-service php artisan migrate --seed
-docker compose exec field-service php artisan migrate --seed
-docker compose exec booking-service php artisan migrate --seed
-docker compose exec notification-service php artisan migrate --seed
+docker compose exec auth-service php artisan migrate
+docker compose exec member-service php artisan migrate
+docker compose exec field-service php artisan migrate
+docker compose exec booking-service php artisan migrate
+docker compose exec notification-service php artisan migrate
 ```
+
+Jalankan seeder hanya untuk service yang memiliki data awal:
+
+```bash
+docker compose exec auth-service php artisan db:seed
+docker compose exec member-service php artisan db:seed
+docker compose exec field-service php artisan db:seed
+```
+
+Seeder Auth Service membuat akun admin default. Seeder Member Service dan Field Service menyiapkan data contoh untuk kebutuhan testing awal.
 
 ### 6. Akses web
 
