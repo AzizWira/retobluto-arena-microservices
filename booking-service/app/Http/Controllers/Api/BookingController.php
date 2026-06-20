@@ -7,6 +7,7 @@ use App\Models\Booking;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Redis;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
@@ -38,6 +39,40 @@ class BookingController extends Controller
             'service' => 'booking-service',
             'message' => 'Booking Service is running',
         ]);
+    }
+
+
+    public function dashboardStats(Request $request)
+    {
+        $adminCheck = $this->ensureAdmin($request);
+
+        if ($adminCheck !== true) {
+            return $adminCheck;
+        }
+
+        try {
+            return response()->json([
+                'success' => true,
+                'message' => 'Statistik dashboard booking berhasil diambil',
+                'data' => [
+                    'stats' => [
+                        'total_bookings' => Booking::count(),
+                        'pending_bookings' => Booking::where('status', 'pending')->count(),
+                        'approved_bookings' => Booking::where('status', 'approved')->count(),
+                        'rejected_bookings' => Booking::where('status', 'rejected')->count(),
+                        'canceled_bookings' => Booking::where('status', 'canceled')->count(),
+                    ],
+                    'latest_bookings' => Booking::latest()->limit(10)->get(),
+                    'pending_bookings' => Booking::where('status', 'pending')->latest()->limit(10)->get(),
+                ],
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Gagal mengambil statistik dashboard booking',
+                'error' => $e->getMessage(),
+            ], 500);
+        }
     }
 
     public function index(Request $request)
@@ -86,7 +121,8 @@ class BookingController extends Controller
                 });
             }
 
-            $bookings = $query->latest()->get();
+            $perPage = min((int) $request->query('per_page', 10), 50);
+            $bookings = $query->latest()->paginate($perPage);
 
             return response()->json([
                 'success' => true,
@@ -419,8 +455,7 @@ class BookingController extends Controller
             return $adminCheck;
         }
 
-        $authCheck = $this->ensureAuthenticated($request);
-        $adminUser = $authCheck['user'] ?? null;
+        $adminUser = $request->attributes->get('auth_user');
 
         try {
             $booking = Booking::find($id);
@@ -491,8 +526,7 @@ class BookingController extends Controller
             return $adminCheck;
         }
 
-        $authCheck = $this->ensureAuthenticated($request);
-        $adminUser = $authCheck['user'] ?? null;
+        $adminUser = $request->attributes->get('auth_user');
 
         try {
             $validated = $request->validate([
@@ -693,6 +727,21 @@ class BookingController extends Controller
             ], 401);
         }
 
+        $cacheKey = 'auth_token:' . hash('sha256', $token);
+        $cachedPayload = Cache::get($cacheKey);
+
+        if (($cachedPayload['valid'] ?? false) && isset($cachedPayload['user'])) {
+            $request->attributes->set('auth_payload', $cachedPayload);
+            $request->attributes->set('auth_user', $cachedPayload['user']);
+            $request->attributes->set('auth_token', $token);
+
+            return [
+                'payload' => $cachedPayload,
+                'user' => $cachedPayload['user'],
+                'token' => $token,
+            ];
+        }
+
         try {
             $authServiceUrl = rtrim(env('AUTH_SERVICE_URL', 'http://auth-service:8000'), '/');
 
@@ -720,6 +769,12 @@ class BookingController extends Controller
                     'message' => 'Token tidak valid',
                 ], 401);
             }
+
+            Cache::put($cacheKey, $payload, now()->addSeconds(60));
+
+            $request->attributes->set('auth_payload', $payload);
+            $request->attributes->set('auth_user', $payload['user']);
+            $request->attributes->set('auth_token', $token);
 
             return [
                 'payload' => $payload,

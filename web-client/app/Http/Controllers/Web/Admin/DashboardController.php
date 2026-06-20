@@ -12,72 +12,71 @@ class DashboardController extends BaseWebController
             return $redirect;
         }
 
-        $fields = [];
-        $members = [];
-        $bookings = [];
-        $pendingBookings = [];
-        $notificationLogs = [];
-
-        try {
-            $response = $this->fieldClient()->get('/api/fields');
-            $fields = $response->successful() ? $this->dataList($response) : [];
-        } catch (\Exception $e) {
-            //
-        }
-
-        try {
-            $response = $this->memberClient()->get('/api/members');
-            $members = $response->successful() ? $this->dataList($response) : [];
-        } catch (\Exception $e) {
-            //
-        }
-
-        try {
-            $response = $this->bookingClient()->get('/api/bookings');
-            $bookings = $response->successful() ? $this->dataList($response) : [];
-        } catch (\Exception $e) {
-            //
-        }
-
-        try {
-            $response = $this->bookingClient()->get('/api/admin/booking-requests');
-            $pendingBookings = $response->successful() ? $this->dataList($response) : [];
-        } catch (\Exception $e) {
-            //
-        }
-
-        try {
-            $response = $this->notificationClient()->get('/api/notifications/logs');
-            $notificationLogs = $response->successful() ? $this->dataList($response) : [];
-        } catch (\Exception $e) {
-            //
-        }
-
         $stats = [
-            'total_fields' => count($fields),
-            'available_fields' => collect($fields)->where('status', 'available')->count(),
-            'maintenance_fields' => collect($fields)->where('status', 'maintenance')->count(),
-            'inactive_fields' => collect($fields)->where('status', 'inactive')->count(),
+            'total_fields' => 0,
+            'available_fields' => 0,
+            'maintenance_fields' => 0,
+            'inactive_fields' => 0,
 
-            'total_members' => count($members),
-            'active_members' => collect($members)->where('status', 'active')->count(),
-            'inactive_members' => collect($members)->where('status', 'inactive')->count(),
-            'blocked_members' => collect($members)->where('status', 'blocked')->count(),
+            'total_members' => 0,
+            'active_members' => 0,
+            'inactive_members' => 0,
+            'blocked_members' => 0,
 
-            'total_bookings' => count($bookings),
-            'pending_bookings' => collect($bookings)->where('status', 'pending')->count(),
-            'approved_bookings' => collect($bookings)->where('status', 'approved')->count(),
-            'rejected_bookings' => collect($bookings)->where('status', 'rejected')->count(),
-            'canceled_bookings' => collect($bookings)->where('status', 'canceled')->count(),
+            'total_bookings' => 0,
+            'pending_bookings' => 0,
+            'approved_bookings' => 0,
+            'rejected_bookings' => 0,
+            'canceled_bookings' => 0,
 
-            'notification_logs' => count($notificationLogs),
+            'notification_logs' => 0,
         ];
 
-        $latestBookings = collect($bookings)
-            ->sortByDesc('id')
-            ->take(10)
-            ->values()
-            ->all();
+        $latestBookings = [];
+        $pendingBookings = [];
+
+        try {
+            $response = $this->fieldClient(5)->get('/api/fields/dashboard-stats');
+
+            if ($response->successful()) {
+                $stats = array_merge($stats, $this->dataItem($response) ?? []);
+            }
+        } catch (\Exception $e) {
+            // Tetap tampilkan dashboard dengan nilai default.
+        }
+
+        try {
+            $response = $this->memberClient(5)->get('/api/members/dashboard-stats');
+
+            if ($response->successful()) {
+                $stats = array_merge($stats, $this->dataItem($response) ?? []);
+            }
+        } catch (\Exception $e) {
+            // Tetap tampilkan dashboard dengan nilai default.
+        }
+
+        try {
+            $response = $this->bookingClient(5)->get('/api/bookings/dashboard-stats');
+
+            if ($response->successful()) {
+                $bookingData = $this->dataItem($response) ?? [];
+                $stats = array_merge($stats, $bookingData['stats'] ?? []);
+                $latestBookings = $bookingData['latest_bookings'] ?? [];
+                $pendingBookings = $bookingData['pending_bookings'] ?? [];
+            }
+        } catch (\Exception $e) {
+            // Tetap tampilkan dashboard dengan nilai default.
+        }
+
+        try {
+            $response = $this->notificationClient(5)->get('/api/notifications/dashboard-stats');
+
+            if ($response->successful()) {
+                $stats = array_merge($stats, $this->dataItem($response) ?? []);
+            }
+        } catch (\Exception $e) {
+            // Tetap tampilkan dashboard dengan nilai default.
+        }
 
         return view('admin.dashboard', compact(
             'stats',

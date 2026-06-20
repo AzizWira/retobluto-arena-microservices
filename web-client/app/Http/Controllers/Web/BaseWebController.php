@@ -128,10 +128,9 @@ class BaseWebController extends Controller
                 ->with('error', 'Silakan login sebagai admin.');
         }
 
-        if (!$this->tokenIsValid()) {
-            return $this->expiredSessionRedirect('Sesi admin telah berakhir. Silakan login kembali.');
-        }
-
+        // Jangan validate-token ke Auth Service di setiap pindah halaman.
+        // Role dari session sudah dibuat saat login. Jika token benar-benar expired,
+        // service API akan mengembalikan 401 dan ditangani oleh apiUnauthorized().
         if (!$this->isAdmin()) {
             return redirect()
                 ->route('login.member')
@@ -149,10 +148,8 @@ class BaseWebController extends Controller
                 ->with('error', 'Silakan login sebagai member.');
         }
 
-        if (!$this->tokenIsValid()) {
-            return $this->expiredSessionRedirect('Sesi member telah berakhir. Silakan login kembali.');
-        }
-
+        // Jangan validate-token ke Auth Service di setiap pindah halaman.
+        // Ini mengurangi request berantai pada Web Client.
         if (!$this->isMember()) {
             return redirect()
                 ->route('login.admin')

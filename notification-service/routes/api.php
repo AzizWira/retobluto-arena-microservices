@@ -11,6 +11,7 @@ Route::get('/health', function () {
     ]);
 });
 
+Route::get('/notifications/dashboard-stats', [NotificationController::class, 'dashboardStats']);
 Route::get('/notifications/logs', [NotificationController::class, 'logs']);
 Route::get('/notifications/logs/{id}', [NotificationController::class, 'showLog']);
 

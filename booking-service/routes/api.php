@@ -6,6 +6,7 @@ use Illuminate\Support\Facades\Route;
 Route::get('/health', [BookingController::class, 'health']);
 
 Route::post('/bookings', [BookingController::class, 'store']);
+Route::get('/bookings/dashboard-stats', [BookingController::class, 'dashboardStats']);
 Route::get('/bookings', [BookingController::class, 'index']);
 
 Route::get('/member/bookings', [BookingController::class, 'memberBookings']);

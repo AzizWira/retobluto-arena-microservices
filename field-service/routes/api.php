@@ -13,6 +13,7 @@ Route::get('/health', function () {
 
 Route::get('/fields/available', [FieldController::class, 'available']);
 
+Route::get('/fields/dashboard-stats', [FieldController::class, 'dashboardStats']);
 Route::get('/fields', [FieldController::class, 'index']);
 Route::post('/fields', [FieldController::class, 'store']);
 

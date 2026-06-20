@@ -7,6 +7,7 @@ use App\Models\Field;
 use Illuminate\Http\Request;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 
@@ -26,6 +27,35 @@ class FieldController extends Controller
         'maintenance',
         'inactive',
     ];
+
+
+    public function dashboardStats(Request $request)
+    {
+        $adminCheck = $this->ensureAdmin($request);
+
+        if ($adminCheck !== true) {
+            return $adminCheck;
+        }
+
+        try {
+            return response()->json([
+                'success' => true,
+                'message' => 'Statistik dashboard lapangan berhasil diambil',
+                'data' => [
+                    'total_fields' => Field::count(),
+                    'available_fields' => Field::where('status', 'available')->count(),
+                    'maintenance_fields' => Field::where('status', 'maintenance')->count(),
+                    'inactive_fields' => Field::where('status', 'inactive')->count(),
+                ],
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Gagal mengambil statistik dashboard lapangan',
+                'error' => $e->getMessage(),
+            ], 500);
+        }
+    }
 
     public function index(Request $request)
     {
@@ -56,7 +86,8 @@ class FieldController extends Controller
                 });
             }
 
-            $fields = $query->latest()->get();
+            $perPage = min((int) $request->query('per_page', 10), 50);
+            $fields = $query->latest()->paginate($perPage);
 
             return response()->json([
                 'success' => true,
@@ -345,6 +376,7 @@ class FieldController extends Controller
                 'success' => true,
                 'message' => 'Jadwal booking lapangan berhasil diambil',
                 'field' => $field,
+                'data' => $response->json('data', []),
                 'booking_schedule' => $response->json(),
             ]);
         } catch (ValidationException $e) {
@@ -379,24 +411,31 @@ class FieldController extends Controller
             ], 401);
         }
 
+        $cacheKey = 'auth_token:' . hash('sha256', $token);
+        $payload = Cache::get($cacheKey);
+
         try {
-            $authServiceUrl = rtrim(env('AUTH_SERVICE_URL', 'http://auth-service:8000'), '/');
+            if (!($payload['valid'] ?? false) || !isset($payload['user'])) {
+                $authServiceUrl = rtrim(env('AUTH_SERVICE_URL', 'http://auth-service:8000'), '/');
 
-            $response = Http::timeout(5)
-                ->withToken($token)
-                ->acceptJson()
-                ->post($authServiceUrl . '/api/validate-token');
+                $response = Http::timeout(5)
+                    ->withToken($token)
+                    ->acceptJson()
+                    ->post($authServiceUrl . '/api/validate-token');
 
-            if (!$response->successful()) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Token tidak valid',
-                    'auth_service_status' => $response->status(),
-                    'auth_service_response' => $response->json(),
-                ], 401);
+                if (!$response->successful()) {
+                    return response()->json([
+                        'success' => false,
+                        'message' => 'Token tidak valid',
+                        'auth_service_status' => $response->status(),
+                        'auth_service_response' => $response->json(),
+                    ], 401);
+                }
+
+                $payload = $response->json();
+                Cache::put($cacheKey, $payload, now()->addSeconds(60));
             }
 
-            $payload = $response->json();
             $user = $payload['user'] ?? null;
 
             if (!$user) {
@@ -405,6 +444,9 @@ class FieldController extends Controller
                     'message' => 'Data user tidak ditemukan dari Auth Service',
                 ], 401);
             }
+
+            $request->attributes->set('auth_payload', $payload);
+            $request->attributes->set('auth_user', $user);
 
             if (($user['role'] ?? null) !== 'admin') {
                 return response()->json([

@@ -7,6 +7,7 @@ use App\Models\NotificationLog;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
@@ -28,6 +29,32 @@ class NotificationController extends Controller
         'sent',
         'failed',
     ];
+
+
+    public function dashboardStats(Request $request)
+    {
+        $adminCheck = $this->ensureAdmin($request);
+
+        if ($adminCheck !== true) {
+            return $adminCheck;
+        }
+
+        try {
+            return response()->json([
+                'success' => true,
+                'message' => 'Statistik dashboard notifikasi berhasil diambil',
+                'data' => [
+                    'notification_logs' => NotificationLog::count(),
+                ],
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Gagal mengambil statistik dashboard notifikasi',
+                'error' => $e->getMessage(),
+            ], 500);
+        }
+    }
 
     public function logs(Request $request)
     {
@@ -64,7 +91,8 @@ class NotificationController extends Controller
                 });
             }
 
-            $logs = $query->latest()->get();
+            $perPage = min((int) $request->query('per_page', 10), 50);
+            $logs = $query->latest()->paginate($perPage);
 
             return response()->json([
                 'success' => true,
@@ -330,6 +358,19 @@ class NotificationController extends Controller
             ], 401);
         }
 
+        $cacheKey = 'auth_token:' . hash('sha256', $token);
+        $cachedPayload = Cache::get($cacheKey);
+
+        if (($cachedPayload['valid'] ?? false) && isset($cachedPayload['user'])) {
+            $request->attributes->set('auth_payload', $cachedPayload);
+            $request->attributes->set('auth_user', $cachedPayload['user']);
+
+            return [
+                'payload' => $cachedPayload,
+                'user' => $cachedPayload['user'],
+            ];
+        }
+
         try {
             $authServiceUrl = rtrim(env('AUTH_SERVICE_URL', 'http://auth-service:8000'), '/');
 
@@ -357,6 +398,11 @@ class NotificationController extends Controller
                     'message' => 'Token tidak valid',
                 ], 401);
             }
+
+            Cache::put($cacheKey, $payload, now()->addSeconds(60));
+
+            $request->attributes->set('auth_payload', $payload);
+            $request->attributes->set('auth_user', $payload['user']);
 
             return [
                 'payload' => $payload,

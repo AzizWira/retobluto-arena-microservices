@@ -14,6 +14,7 @@ Route::get('/health', function () {
 Route::get('/profile', [MemberController::class, 'profile']);
 Route::put('/profile', [MemberController::class, 'updateProfile']);
 
+Route::get('/members/dashboard-stats', [MemberController::class, 'dashboardStats']);
 Route::get('/members', [MemberController::class, 'index']);
 Route::post('/members', [MemberController::class, 'store']);
 
