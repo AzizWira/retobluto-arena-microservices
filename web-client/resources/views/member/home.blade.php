@@ -213,17 +213,17 @@
     </div>
 
     <div class="col-lg-5">
-        <div class="card border-0 shadow-sm h-100">
+        <div class="card border-0 shadow-sm mb-4">
             <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
-                <span>Rekomendasi Lapangan</span>
+                <span>Rekomendasi Pribadi</span>
 
-                <a href="{{ route('member.fields.index') }}" class="btn btn-sm btn-light">
-                    Semua
+                <a href="{{ route('member.bookings.index') }}" class="btn btn-sm btn-light">
+                    Riwayat
                 </a>
             </div>
 
             <div class="card-body">
-                @forelse($recommendedFields as $field)
+                @forelse($personalRecommendedFields as $field)
                     @php
                         $openTime = !empty($field['open_time']) ? substr($field['open_time'], 0, 5) : '-';
                         $closeTime = !empty($field['close_time']) ? substr($field['close_time'], 0, 5) : '-';
@@ -245,6 +245,14 @@
                                 <div class="fw-semibold mt-1">
                                     Rp {{ number_format($field['price_per_hour'] ?? 0, 0, ',', '.') }} / jam
                                 </div>
+
+                                @if(!empty($field['_recommendation_reason']))
+                                    <div class="mt-2">
+                                        <span class="badge bg-light text-primary border">
+                                            {{ $field['_recommendation_reason'] }}
+                                        </span>
+                                    </div>
+                                @endif
                             </div>
 
                             <a
@@ -257,12 +265,69 @@
                     </div>
                 @empty
                     <div class="text-center text-muted py-5">
-                        Belum ada lapangan tersedia.
+                        Belum ada rekomendasi pribadi. Buat booking terlebih dahulu agar sistem dapat membaca preferensi kamu.
+                    </div>
+                @endforelse
+            </div>
+        </div>
+
+        <div class="card border-0 shadow-sm">
+            <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
+                <span>Lapangan Terpopuler</span>
+
+                <a href="{{ route('member.fields.index') }}" class="btn btn-sm btn-light">
+                    Semua
+                </a>
+            </div>
+
+            <div class="card-body">
+                @forelse($globalPopularFields as $field)
+                    @php
+                        $openTime = !empty($field['open_time']) ? substr($field['open_time'], 0, 5) : '-';
+                        $closeTime = !empty($field['close_time']) ? substr($field['close_time'], 0, 5) : '-';
+                    @endphp
+
+                    <div class="border rounded p-3 mb-3 bg-white">
+                        <div class="d-flex justify-content-between align-items-start gap-3">
+                            <div>
+                                <h6 class="mb-1">{{ $field['name'] ?? '-' }}</h6>
+
+                                <div class="text-muted small">
+                                    {{ $field['type'] ?? '-' }} · {{ $field['location'] ?? '-' }}
+                                </div>
+
+                                <div class="text-muted small">
+                                    {{ $openTime }} - {{ $closeTime }}
+                                </div>
+
+                                <div class="fw-semibold mt-1">
+                                    Rp {{ number_format($field['price_per_hour'] ?? 0, 0, ',', '.') }} / jam
+                                </div>
+
+                                @if(!empty($field['_booking_count']))
+                                    <div class="mt-2">
+                                        <span class="badge bg-light text-primary border">
+                                            {{ $field['_booking_count'] }} booking approved
+                                        </span>
+                                    </div>
+                                @endif
+                            </div>
+
+                            <a
+                                href="{{ route('member.fields.show', $field['id']) }}"
+                                class="btn btn-sm btn-outline-primary"
+                            >
+                                Detail
+                            </a>
+                        </div>
+                    </div>
+                @empty
+                    <div class="text-center text-muted py-5">
+                        Belum ada data lapangan terpopuler.
                     </div>
                 @endforelse
             </div>
         </div>
     </div>
-</div>
 
 @endsection

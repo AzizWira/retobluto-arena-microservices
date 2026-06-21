@@ -8,6 +8,7 @@ use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Redis;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
@@ -692,6 +693,64 @@ class BookingController extends Controller
             return response()->json([
                 'success' => false,
                 'message' => 'Gagal mengambil jadwal booking lapangan',
+                'error' => $e->getMessage(),
+            ], 500);
+        }
+    }
+
+    public function popularFields(Request $request)
+    {
+        $authCheck = $this->ensureAuthenticated($request);
+
+        if (!is_array($authCheck)) {
+            return $authCheck;
+        }
+
+        try {
+            $request->validate([
+                'limit' => ['nullable', 'integer', 'min:1', 'max:20'],
+            ]);
+
+            $limit = (int) $request->query('limit', 10);
+
+            $popularFields = Booking::query()
+                ->select(
+                    'field_id',
+                    'field_name',
+                    'field_type',
+                    DB::raw('COUNT(*) as booking_count')
+                )
+                ->where('status', 'approved')
+                ->whereNotNull('field_id')
+                ->groupBy('field_id', 'field_name', 'field_type')
+                ->orderByDesc('booking_count')
+                ->limit($limit)
+                ->get()
+                ->map(function ($item) {
+                    return [
+                        'field_id' => (int) $item->field_id,
+                        'field_name' => $item->field_name,
+                        'field_type' => $item->field_type,
+                        'booking_count' => (int) $item->booking_count,
+                    ];
+                })
+                ->values();
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Data lapangan terpopuler berhasil diambil',
+                'data' => $popularFields,
+            ]);
+        } catch (ValidationException $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Validasi filter gagal',
+                'errors' => $e->errors(),
+            ], 422);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Gagal mengambil data lapangan terpopuler',
                 'error' => $e->getMessage(),
             ], 500);
         }
