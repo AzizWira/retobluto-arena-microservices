@@ -68,7 +68,7 @@ class GraphQLParser
 
         [$body] = self::readBalanced($query, $i, '{', '}');
 
-        return self::parseTopLevelSelectedFields($body);
+        return self::parseSelectedFieldsTree($body);
     }
 
     public static function filterSelection(mixed $data, array $selectedFields): mixed
@@ -81,16 +81,33 @@ class GraphQLParser
             return $data;
         }
 
-        $isList = array_keys($data) === range(0, count($data) - 1);
-
-        if ($isList) {
+        if (array_is_list($data)) {
             return array_map(
                 fn($item) => self::filterSelection($item, $selectedFields),
                 $data
             );
         }
 
-        return array_intersect_key($data, array_flip($selectedFields));
+        $filtered = [];
+
+        foreach ($selectedFields as $field => $children) {
+            if (is_int($field)) {
+                $field = $children;
+                $children = true;
+            }
+
+            if (!is_string($field) || !array_key_exists($field, $data)) {
+                continue;
+            }
+
+            if (is_array($children)) {
+                $filtered[$field] = self::filterSelection($data[$field], $children);
+            } else {
+                $filtered[$field] = $data[$field];
+            }
+        }
+
+        return $filtered;
     }
 
     private static function findTopLevelField(string $query, string $field): ?array
@@ -320,97 +337,81 @@ class GraphQLParser
         return $start;
     }
 
-    private static function parseTopLevelSelectedFields(string $body): array
+    private static function parseSelectedFieldsTree(string $body): array
     {
         $fields = [];
         $length = strlen($body);
-        $depth = 0;
-        $paren = 0;
-        $inString = false;
-        $escape = false;
-        $current = '';
+        $i = 0;
 
-        for ($i = 0; $i < $length; $i++) {
-            $char = $body[$i];
+        while ($i < $length) {
+            $i = self::skipWhitespace($body, $i);
 
-            if ($inString) {
-                if ($escape) {
-                    $escape = false;
-                    continue;
+            if ($i >= $length) {
+                break;
+            }
+
+            if (!isset($body[$i]) || !preg_match('/[A-Za-z_]/', $body[$i])) {
+                $i++;
+                continue;
+            }
+
+            $name = self::readName($body, $i);
+
+            $i = self::skipWhitespace($body, $i);
+
+            if (isset($body[$i]) && $body[$i] === ':') {
+                $alias = $name;
+
+                $i++;
+                $i = self::skipWhitespace($body, $i);
+
+                if (isset($body[$i]) && preg_match('/[A-Za-z_]/', $body[$i])) {
+                    self::readName($body, $i);
+                    $name = $alias;
                 }
 
-                if ($char === '\\') {
-                    $escape = true;
-                    continue;
-                }
-
-                if ($char === '"') {
-                    $inString = false;
-                }
-
-                continue;
+                $i = self::skipWhitespace($body, $i);
             }
 
-            if ($char === '"') {
-                $inString = true;
-                continue;
+            if (isset($body[$i]) && $body[$i] === '(') {
+                [, $i] = self::readBalanced($body, $i, '(', ')');
+                $i = self::skipWhitespace($body, $i);
             }
 
-            if ($char === '(') {
-                $paren++;
-                continue;
-            }
+            if (isset($body[$i]) && $body[$i] === '{') {
+                [$childBody, $i] = self::readBalanced($body, $i, '{', '}');
+                $childFields = self::parseSelectedFieldsTree($childBody);
 
-            if ($char === ')') {
-                if ($paren > 0) {
-                    $paren--;
-                }
-
-                continue;
-            }
-
-            if ($paren > 0) {
-                continue;
-            }
-
-            if ($char === '{') {
-                if ($current !== '') {
-                    $fields[] = $current;
-                    $current = '';
-                }
-
-                $depth++;
-                continue;
-            }
-
-            if ($char === '}') {
-                if ($depth > 0) {
-                    $depth--;
+                if (isset($fields[$name]) && is_array($fields[$name])) {
+                    $fields[$name] = array_replace_recursive($fields[$name], $childFields);
+                } else {
+                    $fields[$name] = $childFields;
                 }
 
                 continue;
             }
 
-            if ($depth > 0) {
-                continue;
-            }
-
-            if (preg_match('/[A-Za-z0-9_]/', $char)) {
-                $current .= $char;
-                continue;
-            }
-
-            if ($current !== '') {
-                $fields[] = $current;
-                $current = '';
-            }
+            $fields[$name] = true;
         }
 
-        if ($current !== '') {
-            $fields[] = $current;
+        return $fields;
+    }
+
+    private static function readName(string $query, int &$i): string
+    {
+        $name = '';
+        $length = strlen($query);
+
+        while (
+            $i < $length
+            && isset($query[$i])
+            && preg_match('/[A-Za-z0-9_]/', $query[$i])
+        ) {
+            $name .= $query[$i];
+            $i++;
         }
 
-        return array_values(array_unique(array_filter($fields)));
+        return $name;
     }
 
     private static function parseValue(string $value): mixed

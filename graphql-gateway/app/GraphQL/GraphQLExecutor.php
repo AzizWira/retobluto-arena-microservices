@@ -89,7 +89,10 @@ class GraphQLExecutor
         }
 
         if (GraphQLParser::hasField($query, 'fieldSchedule')) {
-            $data['fieldSchedule'] = $this->fieldResolver->fieldSchedule($query);
+            $result = $this->fieldResolver->fieldSchedule($query);
+            $selectedFields = GraphQLParser::selectedFields($query, 'fieldSchedule');
+
+            $data['fieldSchedule'] = GraphQLParser::filterSelection($result, $selectedFields);
         }
 
         if (GraphQLParser::hasField($query, 'field')) {
