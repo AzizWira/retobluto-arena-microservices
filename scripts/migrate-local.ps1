@@ -7,7 +7,8 @@ $servicesWithSeed = @(
     "auth-service",
     "member-service",
     "field-service",
-    "booking-service"
+    "booking-service",
+    "notification-service"
 )
 
 foreach ($service in $servicesWithSeed) {
@@ -23,7 +24,7 @@ Write-Host ""
 Write-Host "Migrating notification-service..." -ForegroundColor Yellow
 Push-Location "$root\notification-service"
 php artisan optimize:clear
-php artisan migrate:fresh
+php artisan migrate:fresh --seed
 Pop-Location
 
 Write-Host ""

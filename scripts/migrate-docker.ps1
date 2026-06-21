@@ -8,7 +8,7 @@ docker exec -it retobluto_auth_service php artisan migrate:fresh --seed
 docker exec -it retobluto_member_service php artisan migrate:fresh --seed
 docker exec -it retobluto_field_service php artisan migrate:fresh --seed
 docker exec -it retobluto_booking_service php artisan migrate:fresh --seed
-docker exec -it retobluto_notification_service php artisan migrate:fresh
+docker exec -it retobluto_notification_service php artisan migrate:fresh -seed
 
 Write-Host ""
 Write-Host "Flushing Redis..." -ForegroundColor Yellow
