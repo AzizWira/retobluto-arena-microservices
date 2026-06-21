@@ -8,7 +8,11 @@ Thumbs.db
 
 # Environment
 .env
-.env.*
+.env.local
+.env.local.*
+.env.docker
+.env.xampp
+.env.*.backup
 !.env.example
 
 # Laravel
